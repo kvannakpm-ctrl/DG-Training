@@ -1,1 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dangerous Goods Training</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #ffffff);
+    --text: var(--tg-theme-text-color, #1b1f24);
+    --hint: var(--tg-theme-hint-color, #6b7280);
+    --card: var(--tg-theme-secondary-bg-color, #f2f4f7);
+    --btn: var(--tg-theme-button-color, #2481cc);
+    --btn-text: var(--tg-theme-button-text-color, #ffffff);
+    --good: #1e8f4e;
+    --bad: #c62828;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Khmer", sans-serif;
+         line-height: 1.5; }
+  main { max-width: 560px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 1.3rem; margin: 12px 0 6px; }
+  p { margin: 0 0 12px; }
+  .hint { color: var(--hint); font-size: .95rem; }
+  .lesson { display: flex; gap: 14px; align-items: center; width: 100%; text-align: left;
+            background: var(--card); color: var(--text); border: 0; border-radius: 14px;
+            padding: 14px; margin-top: 12px; font: inherit; cursor: pointer; }
+  .lesson strong { display: block; font-size: 1.05rem; }
+  .btn { display: block; width: 100%; padding: 14px; border: 0; border-radius: 12px;
+         background: var(--btn); color: var(--btn-text); font: inherit; font-weight: 600;
+         margin-top: 10px; cursor: pointer; }
+  .btn.secondary { background: var(--card); color: var(--text); }
+  .btn:focus-visible, .lesson:focus-visible, .opt:focus-visible { outline: 3px solid var(--btn); outline-offset: 2px; }
+  .progress { height: 6px; background: var(--card); border-radius: 3px; overflow: hidden; margin-bottom: 18px; }
+  .progress div { height: 100%; background: var(--btn); transition: width .25s; }
 
+  /* Hazard diamond label */
+  .diamond { position: relative; width: 150px; aspect-ratio: 1; margin: 8px auto 16px;
+             clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: #222; }
+  .diamond.small { width: 56px; margin: 0; flex: none; }
+  .diamond .face { position: absolute; inset: 4%;
+             clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+             display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+             padding: 18% 0 12%; }
+  .diamond .sym { font-size: 2.6rem; line-height: 1; }
+  .diamond .num { font-weight: 800; font-size: 1.5rem; }
+  .diamond.small .sym { font-size: 1rem; }
+  .diamond.small .num { font-size: .7rem; }
+
+  .examples { background: var(--card); border-radius: 12px; padding: 12px 14px; }
+  .opt { display: block; width: 100%; text-align: left; padding: 13px 14px; margin-top: 8px;
+         border: 2px solid var(--card); border-radius: 12px; background: var(--bg);
+         color: var(--text); font: inherit; cursor: pointer; }
+  .opt.correct { border-color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--bg)); }
+  .opt.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--bg)); }
+  .feedback { margin-top: 12px; font-weight: 600; }
+  .score { font-size: 3rem; font-weight: 800; text-align: center; margin: 20px 0 4px; }
+  @media (prefers-reduced-motion: reduce) { .progress div { transition: none; } }
+</style>
+</head>
+<body>
+<main id="app"></main>
+
+<script>
+/* =========================================================
+   1. HAZARD LABELS  (simplified drawings for awareness only)
+   bg = background, ink = colour of symbol and number
+   ========================================================= */
+const LABELS = {
+  c1:  { bg: "#f28c28", ink: "#000", sym: "💥", num: "1" },
+  c2:  { bg: "#d62828", ink: "#fff", sym: "🔥", num: "2" },
+  c3:  { bg: "#d62828", ink: "#fff", sym: "🔥", num: "3" },
+  c4:  { bg: "repeating-linear-gradient(90deg,#d62828 0 10%,#fff 10% 20%)", ink: "#000", sym: "🔥", num: "4" },
+  c5:  { bg: "#ffd60a", ink: "#000", sym: "⭕", num: "5.1" },
+  c6:  { bg: "#ffffff", ink: "#000", sym: "☠️", num: "6" },
+  c7:  { bg: "linear-gradient(#ffd60a 50%,#fff 50%)", ink: "#000", sym: "☢️", num: "7" },
+  c8:  { bg: "linear-gradient(#fff 50%,#1b1b1b 50%)", ink: "#fff", sym: "🧪", num: "8" },
+  c9:  { bg: "linear-gradient(repeating-linear-gradient(90deg,#000 0 7%,#fff 7% 14%) 0 0/100% 50% no-repeat,#fff)", ink: "#000", sym: "", num: "9" }
+};
+
+/* =========================================================
+   2. LESSONS  —  TO ADD A NEW LESSON, COPY ONE { ... } BLOCK
+   ========================================================= */
+const LESSONS = [
+  {
+    title: "The 9 classes of dangerous goods",
+    summary: "Learn what each class means and how to recognise its label.",
+    icon: "c3",
+    cards: [
+      { label: "c1", title: "Class 1: Explosives",
+        text: "Goods that can explode or burn very fast. No smoking or open flame near the vehicle.",
+        examples: "Fireworks, detonators, ammunition" },
+      { label: "c2", title: "Class 2: Gases",
+        text: "Gases under pressure. There are three types: 2.1 flammable (red label), 2.2 non-flammable and non-toxic (green label), and 2.3 toxic (white label).",
+        examples: "LPG cylinders (2.1), nitrogen and CO₂ (2.2), chlorine (2.3)" },
+      { label: "c3", title: "Class 3: Flammable liquids",
+        text: "Liquids that give off vapour that can catch fire. Fuel is one of the most common dangerous goods on the road.",
+        examples: "Petrol, diesel, ethanol, paint thinner" },
+      { label: "c4", title: "Class 4: Flammable solids",
+        text: "4.1 flammable solids, 4.2 goods that can catch fire by themselves, and 4.3 goods that give off flammable gas when wet. Keep 4.3 goods dry.",
+        examples: "Matches, sulphur (4.1), calcium carbide (4.3)" },
+      { label: "c5", title: "Class 5: Oxidizers and organic peroxides",
+        text: "They release oxygen and make fires much stronger. Keep them away from fuels and flammable goods.",
+        examples: "Ammonium nitrate fertiliser, hydrogen peroxide" },
+      { label: "c6", title: "Class 6: Toxic and infectious substances",
+        text: "6.1 poisons that harm people if swallowed, breathed in or touched. 6.2 goods that can spread disease.",
+        examples: "Pesticides (6.1), medical waste and lab samples (6.2)" },
+      { label: "c7", title: "Class 7: Radioactive material",
+        text: "Gives off radiation you cannot see. Stay away from damaged packages and call for help.",
+        examples: "Medical isotopes, industrial measuring devices" },
+      { label: "c8", title: "Class 8: Corrosives",
+        text: "Damage skin, eyes and metal on contact. Wear gloves and eye protection when handling.",
+        examples: "Battery acid, caustic soda" },
+      { label: "c9", title: "Class 9: Miscellaneous",
+        text: "Dangerous goods that do not fit other classes but still need care during transport.",
+        examples: "Lithium batteries, dry ice, environmentally hazardous substances" }
+    ],
+    quiz: [
+      { label: "c1", q: "Which class is shown by this label?", options: ["Class 1", "Class 3", "Class 5", "Class 9"], answer: 0 },
+      { q: "A truck carries LPG cylinders. Which class are they?", options: ["Class 3", "Class 2", "Class 4", "Class 9"], answer: 1 },
+      { q: "Diesel fuel belongs to which class?", options: ["Class 8", "Class 2", "Class 3", "Class 6"], answer: 2 },
+      { label: "c8", q: "What does this label warn you about?", options: ["Explosion", "Radiation", "Poison", "Corrosion of skin and metal"], answer: 3 },
+      { q: "Which goods must be kept away from fuel because they make fires stronger?", options: ["Class 5 oxidizers", "Class 9 goods", "Class 2.2 gases", "Class 7 goods"], answer: 0 },
+      { label: "c6", q: "Which class is shown by this label?", options: ["Class 7", "Class 6", "Class 1", "Class 4"], answer: 1 },
+      { q: "Lithium batteries belong to which class?", options: ["Class 4", "Class 8", "Class 9", "Class 1"], answer: 2 },
+      { q: "Calcium carbide gives off flammable gas when wet. What should the driver do?", options: ["Keep it dry", "Keep it cold", "Keep it in the sun", "Nothing special"], answer: 0 }
+    ]
+  }
+  /* , { title: "Lesson 2 ...", summary: "...", icon: "c9", cards: [ ... ], quiz: [ ... ] } */
+];
+
+/* =========================================================
+   3. APP LOGIC  (you do not need to change this part)
+   ========================================================= */
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) { tg.ready(); tg.expand(); }
+const app = document.getElementById("app");
+let backAction = null;
+
+function setBack(fn) {
+  backAction = fn;
+  if (!tg || !tg.BackButton) return;
+  fn ? tg.BackButton.show() : tg.BackButton.hide();
+}
+if (tg && tg.BackButton) tg.BackButton.onClick(() => backAction && backAction());
+
+function haptic(type) {
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(type);
+}
+
+function diamond(key, small) {
+  const l = LABELS[key];
+  if (!l) return "";
+  return `<div class="diamond${small ? " small" : ""}" role="img" aria-label="Hazard label ${l.num}">
+    <div class="face" style="background:${l.bg};color:${l.ink}">
+      <span class="sym">${l.sym}</span><span class="num">${l.num}</span></div></div>`;
+}
+
+function showHome() {
+  setBack(null);
+  app.innerHTML = `<h1>Dangerous Goods Training</h1>
+    <p class="hint">Choose a lesson. Each lesson ends with a short quiz.</p>` +
+    LESSONS.map((l, i) => `<button class="lesson" onclick="showCard(${i},0)">
+      ${diamond(l.icon, true)}<span><strong>Lesson ${i + 1}: ${l.title}</strong>
+      <span class="hint">${l.summary}</span></span></button>`).join("");
+}
+
+function showCard(li, ci) {
+  const lesson = LESSONS[li], card = lesson.cards[ci], last = ci === lesson.cards.length - 1;
+  setBack(() => ci > 0 ? showCard(li, ci - 1) : showHome());
+  app.innerHTML = `<div class="progress"><div style="width:${(ci + 1) / lesson.cards.length * 100}%"></div></div>
+    <p class="hint">Lesson ${li + 1} · ${ci + 1} of ${lesson.cards.length}</p>
+    ${diamond(card.label)}<h2>${card.title}</h2><p>${card.text}</p>
+    ${card.examples ? `<div class="examples"><strong>Examples:</strong> ${card.examples}</div>` : ""}
+    <button class="btn" onclick="${last ? `startQuiz(${li})` : `showCard(${li},${ci + 1})`}">
+      ${last ? "Start the quiz" : "Next"}</button>`;
+  window.scrollTo(0, 0);
+}
+
+let score = 0;
+function startQuiz(li) { score = 0; showQuestion(li, 0); }
+
+function showQuestion(li, qi) {
+  const quiz = LESSONS[li].quiz, item = quiz[qi];
+  setBack(() => showCard(li, LESSONS[li].cards.length - 1));
+  app.innerHTML = `<div class="progress"><div style="width:${(qi + 1) / quiz.length * 100}%"></div></div>
+    <p class="hint">Question ${qi + 1} of ${quiz.length}</p>
+    ${item.label ? diamond(item.label) : ""}<h2>${item.q}</h2>
+    <div id="opts">${item.options.map((o, i) =>
+      `<button class="opt" onclick="answer(${li},${qi},${i})">${o}</button>`).join("")}</div>
+    <div id="after"></div>`;
+  window.scrollTo(0, 0);
+}
+
+function answer(li, qi, chosen) {
+  const quiz = LESSONS[li].quiz, item = quiz[qi], ok = chosen === item.answer;
+  if (ok) score++;
+  haptic(ok ? "success" : "error");
+  document.querySelectorAll(".opt").forEach((b, i) => {
+    b.disabled = true;
+    if (i === item.answer) b.classList.add("correct");
+    else if (i === chosen) b.classList.add("wrong");
+  });
+  const last = qi === quiz.length - 1;
+  document.getElementById("after").innerHTML =
+    `<p class="feedback" style="color:${ok ? "var(--good)" : "var(--bad)"}">
+      ${ok ? "Correct!" : "Not quite. The correct answer is highlighted."}</p>
+     <button class="btn" onclick="${last ? `showResult(${li})` : `showQuestion(${li},${qi + 1})`}">
+      ${last ? "See my result" : "Next question"}</button>`;
+}
+
+function showResult(li) {
+  const total = LESSONS[li].quiz.length, pass = score / total >= 0.75;
+  setBack(showHome);
+  app.innerHTML = `<h1>Your result</h1><div class="score">${score} / ${total}</div>
+    <p style="text-align:center">${pass ? "Well done. You passed this lesson."
+      : "Review the lesson and try again. You need 75% to pass."}</p>
+    <button class="btn" onclick="startQuiz(${li})">Try the quiz again</button>
+    <button class="btn secondary" onclick="showCard(${li},0)">Review the lesson</button>
+    <button class="btn secondary" onclick="showHome()">Back to all lessons</button>`;
+}
+
+showHome();
+</script>
+</body>
+</html>
